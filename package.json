@@ -28,6 +28,8 @@
     "*.{js,css,md}": "prettier --write"
   },
   "dependencies": {
-    "acorn": "^8.0.1"
+    "acorn": "^8.0.1",
+    "esrecurse": "^4.3.0",
+    "nodemon": "^2.0.4"
   }
 }

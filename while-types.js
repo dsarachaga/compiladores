@@ -1,0 +1,503 @@
+/** Implementation of the While language from [_Semantics with Applications_ by
+ * Nielsen & Nielsen](https://archive.org/details/Hanne_Riis_Nielson_Flemming_Nielson__Semantics_with_Applications/mode/2up)
+ * (section 1.2).
+ *
+ * by Leonardo Val.
+ */
+
+class ASTNode {
+  /// /////////////////////////////////////////////////////////////
+  constructor(...args) {
+    ASTNode.__init__(this, ...args);
+  }
+
+  static get props() {
+    throw new Error(`${this.constructor.props} is not implemented!`);
+  }
+
+  static __init__(node, ...args) {
+    const {props} = node.constructor;
+    props.forEach(({ name, type, optional }, i) => {
+      const arg = args[i];
+      if ((arg !== undefined && arg !== null) || !optional) {
+        defineTypedProperty(node, name, type, arg);
+      }
+    });
+  }
+
+  toString() {
+    const propString = this.constructor.props
+      .map(({ name }) => `${this[name]}`)
+      .join(', ');
+    return `${this.constructor.name}(${propString})`;
+  }
+}
+
+class Exp extends ASTNode {
+  /// /////////////////////////////////////////////////
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval() {
+    throw new Error(`${this.constructor.name}.eval() is not implemented!`);
+  }
+
+  typedEval(type, ...args) {
+    return checkType(this.constructor.name, type, this.eval(...args));
+  }
+
+  check() {
+    throw new Error(`${this.constructor.name}.check() is not implemented!`);
+  }
+}
+
+class Num extends Exp {
+  static get props() {
+    return [{ name: 'n', type: 'number' }];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval() {
+    return this.n;
+  }
+}
+
+class VarValue extends Exp {
+  static get props() {
+    return [{ name: 'x', type: 'string' }];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    const variable = state.get(this.x);
+    if (!variable) {
+      throw new Error(`Unknown variable ${this.x}`);
+    }
+    if (variable.value === undefined) {
+      throw new Error(`Variable ${this.x} has not been initialized!`);
+    }
+    return variable.value;
+  }
+}
+
+class Add extends Exp {
+  static get props() {
+    return [
+      { name: 'e1', type: Exp },
+      { name: 'e2', type: Exp },
+    ];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    const v1 = this.e1.typedEval('number', state);
+    const v2 = this.e2.typedEval('number', state);
+    return v1 + v2;
+  }
+
+  check(state, errors) {
+    const t1 = this.e1.check(state, errors);
+    const t2 = this.e2.check(state, errors);
+    if (t1 !== 'number' || t2 !== 'number') {
+      errors.push(`Type mismatch (${t1} + ${t2})`);
+    }
+    return 'number';
+  }
+}
+
+class Mult extends Exp {
+  static get props() {
+    return [
+      { name: 'e1', type: Exp },
+      { name: 'e2', type: Exp },
+    ];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    const v1 = this.e1.typedEval('number', state);
+    const v2 = this.e2.typedEval('number', state);
+    return v1 * v2;
+  }
+}
+
+class Sub extends Exp {
+  static get props() {
+    return [
+      { name: 'e1', type: Exp },
+      { name: 'e2', type: Exp },
+    ];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    const v1 = this.e1.typedEval('number', state);
+    const v2 = this.e2.typedEval('number', state);
+    return v1 - v2;
+  }
+}
+
+class Bool extends Exp {
+  static get props() {
+    return [{ name: 'b', type: 'boolean' }];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval() {
+    return this.b;
+  }
+}
+
+class CompEq extends Exp {
+  static get props() {
+    return [
+      { name: 'e1', type: Exp },
+      { name: 'e2', type: Exp },
+    ];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    const v1 = this.e1.typedEval('number', state);
+    const v2 = this.e2.typedEval('number', state);
+    return v1 === v2;
+  }
+}
+
+class CompLte extends Exp {
+  static get props() {
+    return [
+      { name: 'e1', type: Exp },
+      { name: 'e2', type: Exp },
+    ];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    const v1 = this.e1.typedEval('number', state);
+    const v2 = this.e2.typedEval('number', state);
+    return v1 <= v2;
+  }
+}
+
+class Neg extends Exp {
+  static get props() {
+    return [{ name: 'e', type: Exp }];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    const v = this.e.typedEval('boolean', state);
+    return !v;
+  }
+}
+
+class And extends Exp {
+  static get props() {
+    return [
+      { name: 'e1', type: Exp },
+      { name: 'e2', type: Exp },
+    ];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    const v1 = this.e1.typedEval('boolean', state);
+    const v2 = this.e2.typedEval('boolean', state);
+    return v1 && v2;
+  }
+}
+
+class Stmt extends ASTNode {
+  /// ////////////////////////////////////////////////
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval() {
+    throw new Error(`${this.constructor.name}.eval() is not implemented!`);
+  }
+
+  check() {
+    throw new Error(`${this.constructor.name}.check() is not implemented!`);
+  }
+}
+
+class VarDecl extends Stmt {
+  static get props() {
+    return [
+      { name: 't', type: 'string' },
+      { name: 'x', type: 'string' },
+      { name: 'e', type: Exp, optional: true },
+    ];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    state = state || new Map();
+    const { t, x, e } = this;
+    let variable = state.get(x);
+    if (variable) {
+      throw new Error(`Variable ${this.x} is already declared!`);
+    }
+    variable = {
+      name: x,
+      type: t,
+      ...(e && { value: checkType(x, t, e.eval(state)) }),
+    };
+    state.set(this.x, variable);
+    return state;
+  }
+
+  check(state, errors) {
+    const { t, x, e } = this;
+    if (state.get(x)) {
+      errors.push(`Variable ${x} is already declared!`);
+    }
+
+    if (e) {
+      const t1 = e.check(state, errors);
+      if (t1 !== t) {
+        errors.push(`Type mismatch (${t1} + ${t})`);
+      }
+    }
+    state.set(x, {name: x, type: t, assigned: !!e });
+  }
+}
+
+class Assign extends Stmt {
+  static get props() {
+    return [
+      { name: 'x', type: 'string' },
+      { name: 'e', type: Exp },
+    ];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    state = state || new Map();
+    const variable = state.get(this.x);
+    if (!variable) {
+      throw new Error(`Unknown variable ${this.x}!`);
+    }
+    const value = checkType(this.x, variable.type, this.e.eval(state));
+    variable.value = value;
+    return state;
+  }
+
+  check(state, errors) {
+    const { x, e } = this;
+    const isDeclared = state.get(x)
+    if (isDeclared) 
+    const t = this.e.check(state, errors);
+
+  }
+}
+
+class Seq extends Stmt {
+  static get props() {
+    return [{ name: 'stmts', type: [Stmt] }];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    state = state || new Map();
+    return this.stmts.reduce((s, stmt) => stmt.eval(s), state);
+  }
+}
+
+class IfThenElse extends Stmt {
+  static get props() {
+    return [
+      { name: 'b', type: Exp },
+      { name: 's1', type: Stmt },
+      { name: 's2', type: Stmt, optional: true },
+    ];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    state = state || new Map();
+    if (this.b.typedEval('boolean', state)) {
+      return this.s1.eval(state);
+    } if (this.s2) {
+      return this.s2.eval(state);
+    }
+  }
+}
+
+class WhileDo extends Stmt {
+  static get props() {
+    return [
+      { name: 'b', type: Exp },
+      { name: 's', type: Stmt },
+    ];
+  }
+
+  constructor(...args) {
+    super(...args);
+  }
+
+  eval(state) {
+    state = state || new Map();
+    while (this.b.typedEval('boolean', state)) {
+      state = this.s.eval(state);
+    }
+    return state;
+  }
+}
+
+// Examples ////////////////////////////////////////////////////////////////////
+
+const makeState = (obj) =>
+  new Map(
+    Object.entries(obj).map(([name, value]) => [
+      name,
+      { name, value, type: typeof value },
+    ]),
+  );
+
+const showState = (state) =>
+  `{ ${[...state.entries()]
+    .map(([, { name, type, value }]) => `${name}:${type}=${value}`)
+    .join(', ')} }`;
+
+const EXAMPLES = {
+  factorial: new Seq([
+    new VarDecl('number', 'f', new Num(1)),
+    new WhileDo(
+      new CompLte(new Num(1), new VarValue('n')),
+      new Seq([
+        new Assign('f', new Mult(new VarValue('f'), new VarValue('n'))),
+        new Assign('n', new Sub(new VarValue('n'), new Num(1))),
+      ]),
+    ),
+  ]),
+};
+
+const TESTS = [
+  {
+    code: EXAMPLES.factorial,
+    start: makeState({ n: 0 }),
+    end: makeState({ n: 0, f: 1 }),
+  },
+  {
+    code: EXAMPLES.factorial,
+    start: makeState({ n: 8 }),
+    end: makeState({ n: 0, f: 8 * 7 * 6 * 5 * 4 * 3 * 2 * 1 }),
+  },
+];
+
+// Utilities ///////////////////////////////////////////////////////////////////
+
+function checkType(name, type, value) {
+  if (typeof type === 'string') {
+    if (typeof value !== type) {
+      throw new TypeError(
+        `Expected ${type} for ${name}, but got ${typeof value}!`,
+      );
+    }
+  } else if (typeof type === 'function') {
+    if (!(value instanceof type)) {
+      throw new TypeError(
+        `Expected ${type.name} for ${name}, but got ${
+          value && value.constructor.name
+        }!`,
+      );
+    }
+  } else if (Array.isArray(type)) {
+    if (!Array.isArray(value)) {
+      throw new TypeError(
+        `Expected array for ${name}, but got ${
+          value && value.constructor.name
+        }!`,
+      );
+    }
+    value.forEach((v, i) => checkType(`${name}[${i}]`, type[0], v));
+  }
+  return value;
+}
+
+function defineTypedProperty(obj, prop, type, value) {
+  checkType(prop, type, value);
+  Object.defineProperty(obj, prop, { value });
+}
+
+if (require.main === module) {
+  TESTS.forEach(({ code, start, end: expected }, i) => {
+    const actual = code.eval(start);
+    console.log(`\
+Test #${i}. Running code
+  ${code}
+on state
+  ${showState(start)}
+Expected result:
+  ${showState(expected)}
+Actual result:
+  ${showState(actual)}\n`);
+  });
+} else {
+  module.exports = {
+    Exp,
+    Num,
+    VarValue,
+    Add,
+    Mult,
+    Sub,
+    Bool,
+    CompEq,
+    CompLte,
+    Neg,
+    And,
+    Stmt,
+    VarDecl,
+    Assign,
+    Seq,
+    IfThenElse,
+    WhileDo,
+    TESTS,
+  };
+}
