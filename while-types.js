@@ -16,7 +16,7 @@ class ASTNode {
   }
 
   static __init__(node, ...args) {
-    const {props} = node.constructor;
+    const { props } = node.constructor;
     props.forEach(({ name, type, optional }, i) => {
       const arg = args[i];
       if ((arg !== undefined && arg !== null) || !optional) {
@@ -63,6 +63,10 @@ class Num extends Exp {
 
   eval() {
     return this.n;
+  }
+
+  check() {
+    return 'number';
   }
 }
 
@@ -295,7 +299,9 @@ class VarDecl extends Stmt {
         errors.push(`Type mismatch (${t1} + ${t})`);
       }
     }
-    state.set(x, {name: x, type: t, assigned: !!e });
+    console.log({errors})
+    state.set(x, { name: x, type: t, assigned: !!e });
+    return { state, errors }
   }
 }
 
@@ -324,10 +330,10 @@ class Assign extends Stmt {
 
   check(state, errors) {
     const { x, e } = this;
-    const isDeclared = state.get(x)
-    if (isDeclared) 
-    const t = this.e.check(state, errors);
-
+    const isDeclared = state.get(x);
+    if (isDeclared) {
+      const t = this.e.check(state, errors);
+    }
   }
 }
 
@@ -343,6 +349,12 @@ class Seq extends Stmt {
   eval(state) {
     state = state || new Map();
     return this.stmts.reduce((s, stmt) => stmt.eval(s), state);
+  }
+
+  check(state, errors) {
+    state = state || new Map();
+    errors = errors || [] 
+    return this.stmts.reduce((s, stmt) => stmt.check(s.state, s.errors), { state, errors });
   }
 }
 
@@ -363,7 +375,8 @@ class IfThenElse extends Stmt {
     state = state || new Map();
     if (this.b.typedEval('boolean', state)) {
       return this.s1.eval(state);
-    } if (this.s2) {
+    }
+    if (this.s2) {
       return this.s2.eval(state);
     }
   }
@@ -387,6 +400,13 @@ class WhileDo extends Stmt {
       state = this.s.eval(state);
     }
     return state;
+  }
+
+  check(state, errors) {
+    state = state || new Map();
+    errors = errors || [];
+
+    return this.b.check(state, errors);
   }
 }
 
@@ -471,6 +491,19 @@ if (require.main === module) {
     const actual = code.eval(start);
     console.log(`\
 Test #${i}. Running code
+  ${code}
+on state
+  ${showState(start)}
+Expected result:
+  ${showState(expected)}
+Actual result:
+  ${showState(actual)}\n`);
+  });
+
+  TESTS.forEach(({ code, start, end: expected }, i) => {
+    const actual = code.check(start);
+    console.log(`\
+Test #${i}. Running check code
   ${code}
 on state
   ${showState(start)}
