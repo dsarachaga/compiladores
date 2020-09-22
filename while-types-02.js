@@ -89,6 +89,15 @@ class VarValue extends Exp {
     }
     return variable.value;
   }
+
+  check(state, errors) {
+    const variable = state.get(this.x)
+    if (!variable) {
+      errors.push(`Unknown variable ${this.x}`);
+    }
+
+    return variable.type
+  }
 }
 
 class Add extends Exp {
@@ -136,6 +145,15 @@ class Mult extends Exp {
     const v2 = this.e2.typedEval('number', state);
     return v1 * v2;
   }
+
+  check(state, errors) {
+    const t1 = this.e1.check(state, errors);
+    const t2 = this.e2.check(state, errors);
+    if (t1 !== 'number' || t2 !== 'number') {
+      errors.push(`Type mismatch (${t1} + ${t2})`);
+    }
+    return 'number';
+  }
 }
 
 class Sub extends Exp {
@@ -169,6 +187,10 @@ class Bool extends Exp {
   eval() {
     return this.b;
   }
+
+  check() {
+    return 'boolean';
+  }
 }
 
 class CompEq extends Exp {
@@ -188,6 +210,17 @@ class CompEq extends Exp {
     const v2 = this.e2.typedEval('number', state);
     return v1 === v2;
   }
+
+  check(state, errors) {
+    const t1 = this.e1.check(state, errors);
+    const t2 = this.e2.check(state, errors);
+    
+    if (t1 !== t2) {
+      errors.push(`Type mismatch (${t1} + ${t2})`);
+    }
+    
+    return { state, errors };
+  }
 }
 
 class CompLte extends Exp {
@@ -206,6 +239,17 @@ class CompLte extends Exp {
     const v1 = this.e1.typedEval('number', state);
     const v2 = this.e2.typedEval('number', state);
     return v1 <= v2;
+  }
+
+  check(state, errors) {
+    const t1 = this.e1.check(state, errors);
+    const t2 = this.e2.check(state, errors);
+    
+    if (t1 !== 'number' || t2 !== 'number') {
+      errors.push(`Type mismatch (${t1} + ${t2})`);
+    }
+    
+    return { state, errors };
   }
 }
 
@@ -420,9 +464,20 @@ const makeState = (obj) =>
     ]),
   );
 
-const showState = (state) =>
-  `{ ${[...state.entries()]
+const showState = (state) => `{ ${[...state.entries()]
     .map(([, { name, type, value }]) => `${name}:${type}=${value}`)
+    .join(', ')} }`;
+
+const makeTypeState = (obj) =>
+  new Map(
+    Object.entries(obj).map(([name, type]) => [
+      name,
+      { name, type, assigned: false },
+    ]),
+  );
+
+const showTypeState = (state) => `{ ${[...state.entries()]
+    .map(([, { name, type, assigned }]) => `${name}:${type}:${value}`)
     .join(', ')} }`;
 
 const EXAMPLES = {
@@ -450,6 +505,14 @@ const TESTS = [
     end: makeState({ n: 0, f: 8 * 7 * 6 * 5 * 4 * 3 * 2 * 1 }),
   },
 ];
+
+const TYPE_TESTS = [
+  {
+    code: EXAMPLES.factorial,
+    start: makeTypeState({ n: 'number' }),
+    end: makeTypeState({ n: 'number', f: 'number' }),
+  },
+]
 
 // Utilities ///////////////////////////////////////////////////////////////////
 
@@ -500,8 +563,8 @@ Actual result:
   ${showState(actual)}\n`);
   });
 
-  TESTS.forEach(({ code, start, end: expected }, i) => {
-    const actual = code.check(start);
+  TYPE_TESTS.forEach(({ code, start, end: expected }, i) => {
+    const actual = code.check(start, []);
     console.log(`\
 Test #${i}. Running check code
   ${code}
