@@ -454,6 +454,73 @@ class WhileDo extends Stmt {
   }
 }
 
+class Array extends ASTNode {
+  /// /////////////////////////////////////////////////
+  constructor(...args) {
+    super(...args);
+    this.elements = args
+  }
+
+  eval() {
+    throw new Error(`${this.constructor.name}.eval() is not implemented!`);
+  }
+
+  typedEval(type, ...args) {
+    return checkType(this.constructor.name, type, this.eval(...args));
+  }
+
+  check() {
+    throw new Error(`${this.constructor.name}.check() is not implemented!`);
+  }
+
+}
+
+class NumArray extends Array {
+  static get props() {
+    return [{ name: 'n', type: 'number[]' }];
+  }
+
+  constructor(...args) {
+    super(...args);
+    args.forEach(item => {
+      checkType(this.constructor.name, 'number', item);
+    })
+    this.elements = args
+  }
+
+  eval() {
+    return this.n;
+  }
+
+  check() {
+    return 'number[]';
+  }
+}
+
+class BoolArray extends Array {
+  static get props() {
+    return [{ name: 'b', type: 'boolean[]' }];
+  }
+
+  constructor(...args) {
+    super(...args);
+    args.forEach(item => {
+      checkType(this.constructor.name, 'boolean', item);
+    })
+    this.elements = args
+  }
+
+  eval() {
+    return this.b;
+  }
+
+  check() {
+    return 'boolean[]';
+  }
+}
+
+
+
 // Examples ////////////////////////////////////////////////////////////////////
 
 const makeState = (obj) =>
@@ -595,5 +662,6 @@ Actual result:
     IfThenElse,
     WhileDo,
     TESTS,
+    TYPE_TESTS
   };
 }
